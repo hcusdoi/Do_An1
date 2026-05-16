@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Duyệt phim — CineAI{% endblock %}
+
+{% block content %}
+<div style="padding:32px 0 0;">
+  <h1 style="font-size:1.6rem;">🎬 Kho phim</h1>
+</div>
+
+<!-- Search + filter bar -->
+<div style="display:flex; gap:10px; margin:20px 0; flex-wrap:wrap;">
+  <div style="flex:1; min-width:200px; position:relative;">
+    <input type="text" id="searchInput" placeholder="🔍 Tìm theo tên phim..."
+           value="{{ search }}" style="width:100%; padding:12px 16px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-size:.9rem; outline:none;"
+           oninput="debouncedSearch()">
+  </div>
+  <select id="genreSelect" onchange="applyFilters()" style="padding:12px 16px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); color:var(--text);">
+    <option value="">Tất cả thể loại</option>
+    {% for g in genres %}
+    <option value="{{ g }}" {% if g == genre %}selected{% endif %}>{{ g|title }}</option>
+    {% endfor %}
+  </select>
+</div>
+
+<!-- Genre chips -->
+<div class="filters" style="margin-bottom:24px;">
+  <a href="/movies" class="filter-chip {% if not genre %}active{% endif %}">Tất cả</a>
+  {% for g in genres %}
+  <a href="/movies?genre={{ g }}" class="filter-chip {% if g == genre %}active{% endif %}">{{ g|title }}</a>
+  {% endfor %}
+</div>
+
+<!-- Results -->
+<div id="movieGrid" class="movie-grid">
+{% for m in movies %}
+  <a href="/movie/{{ m.movie_id }}" class="movie-card">
+    <div class="movie-thumb">
+      {% set emojis = ['🎬','🎭','🎪','🎥','🎞','🎦','📽','🎫','🎩','🎪','🌟','💫','🏆','⚡','🔥','💎','🎵','🌊'] %}
+      <span>{{ emojis[loop.index0 % 18] }}</span>
+      {% if m.avg_rating %}
+      <div class="rating-badge">⭐ {{ "%.1f"|format(m.avg_rating) }}</div>
+      {% endif %}
+    </div>
+    <div class="movie-info">
+      <div class="movie-title">{{ m.title }}</div>
+      <div class="movie-genres">{{ m.genres or 'Chưa phân loại' }}</div>
+      <div class="movie-year">{{ m.year or '' }} &nbsp;·&nbsp; {{ m.num_ratings|default(0)|int }} lượt đánh giá</div>
+    </div>
+  </a>
+{% else %}
+  <div class="empty-state" style="grid-column:1/-1;">
+    <div class="icon">🔍</div>
+    <p>Không tìm thấy phim phù hợp</p>
+  </div>
+{% endfor %}
+</div>
+
+<!-- Load more -->
+{% if movies|length >= 24 %}
+<div style="text-align:center; margin-top:32px;">
+  <button class="btn btn-secondary" onclick="loadMore()">⬇️ Xem thêm</button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+let debounceTimer;
+let offset = parseInt("{{ movies|length }}", 10) || 0;
+
+function debouncedSearch() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(applyFilters, 400);
+}
+
+function applyFilters() {
+  const search = document.getElementById('searchInput').value.trim();
+  const genre  = document.getElementById('genreSelect').value;
+  let url = '/movies?';
+  if (search) url += `search=${encodeURIComponent(search)}&`;
+  if (genre)  url += `genre=${encodeURIComponent(genre)}&`;
+  window.location.href = url;
+}
+
+function loadMore() {
+  const genre  = document.getElementById('genreSelect').value;
+  const search = document.getElementById('searchInput').value;
+  fetch(`/api/movies?limit=24&offset=${offset}&genre=${genre}&search=${search}`)
+    .then(r => r.json())
+    .then(movies => {
+      const grid = document.getElementById('movieGrid');
+      const emojis = ['🎬','🎭','🎪','🎥','🎞','🎦','📽','🎫','🎩'];
+      movies.forEach((m, i) => {
+        const card = document.createElement('a');
+        card.href = `/movie/${m.movie_id}`;
+        card.className = 'movie-card';
+        card.innerHTML = `
+          <div class="movie-thumb"><span>${emojis[(offset+i)%9]}</span>
+            ${m.avg_rating ? `<div class="rating-badge">⭐ ${parseFloat(m.avg_rating).toFixed(1)}</div>` : ''}
+          </div>
+          <div class="movie-info">
+            <div class="movie-title">${m.title}</div>
+            <div class="movie-genres">${m.genres || ''}</div>
+          </div>`;
+        grid.appendChild(card);
+      });
+      offset += movies.length;
+      if (movies.length < 24) document.querySelector('[onclick="loadMore()"]').style.display = 'none';
+    });
+}
+</script>
+{% endblock %}

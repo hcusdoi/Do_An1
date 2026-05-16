@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Đăng ký — CineAI{% endblock %}
+
+{% block content %}
+<div class="form-card" style="max-width:520px;">
+  <h1>🚀 Tạo tài khoản</h1>
+  <p>Đã có tài khoản? <a href="/login" style="color:var(--primary)">Đăng nhập</a></p>
+
+  {% if errors %}
+  <div class="error-box">
+    {% for e in errors %}<div>⚠️ {{ e }}</div>{% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/register">
+    <div class="form-group">
+      <label>Tên đăng nhập *</label>
+      <input type="text" name="username" placeholder="vd: nguyen_van_a" required minlength="3">
+    </div>
+    <div class="form-group">
+      <label>Email *</label>
+      <input type="email" name="email" placeholder="email@example.com" required>
+    </div>
+    <div class="form-group">
+      <label>Tên hiển thị</label>
+      <input type="text" name="display_name" placeholder="Tên của bạn">
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div class="form-group">
+        <label>Mật khẩu *</label>
+        <input type="password" name="password" placeholder="Tối thiểu 6 ký tự" required minlength="6">
+      </div>
+      <div class="form-group">
+        <label>Xác nhận mật khẩu *</label>
+        <input type="password" name="confirm_password" placeholder="Nhập lại..." required>
+      </div>
+    </div>
+
+    <!-- Chon the loai yeu thich -->
+    <div class="form-group">
+      <label>🎭 Thể loại yêu thích (chọn tối đa 5)</label>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;" id="genreGrid">
+        {% for g in genres %}
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; background:var(--bg3); border:1px solid var(--border); border-radius:99px; padding:6px 14px; font-size:.8rem; transition:.2s;" class="genre-chip">
+          <input type="checkbox" name="fav_genres" value="{{ g }}" style="display:none;" onchange="updateGenreChip(this)">
+          {{ g|title }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-full">
+      ✅ Tạo tài khoản
+    </button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateGenreChip(cb) {
+  const checked = document.querySelectorAll('input[name=fav_genres]:checked');
+  if (checked.length > 5) { cb.checked = false; showToast('Chọn tối đa 5 thể loại', 'error'); return; }
+  cb.closest('label').style.background = cb.checked ? 'var(--primary)' : 'var(--bg3)';
+  cb.closest('label').style.borderColor = cb.checked ? 'var(--primary)' : 'var(--border)';
+  cb.closest('label').style.color = cb.checked ? '#fff' : '';
+}
+</script>
+{% endblock %}

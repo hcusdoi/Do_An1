@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Hồ sơ — CineAI{% endblock %}
+
+{% block content %}
+<div style="padding:32px 0;">
+  <!-- Header -->
+  <div style="display:flex; align-items:center; gap:20px; margin-bottom:32px;">
+    <div class="avatar" style="width:72px; height:72px; font-size:1.8rem;">{{ user.display_name[0]|upper }}</div>
+    <div>
+      <h1 style="font-size:1.5rem;">{{ user.display_name }}</h1>
+      <p style="color:var(--text-muted); font-size:.9rem;">@{{ user.username }} &nbsp;·&nbsp; Thành viên từ {{ user.created_at[:10] }}</p>
+      {% if user.role == 'admin' %}<span style="background:var(--primary); color:#fff; font-size:.72rem; padding:2px 8px; border-radius:99px;">Admin</span>{% endif %}
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:32px;">
+    <div style="background:var(--card); border-radius:var(--radius); padding:20px; text-align:center;">
+      <div style="font-size:1.8rem; font-weight:700; color:var(--accent);">{{ ratings|length }}</div>
+      <div style="font-size:.82rem; color:var(--text-muted); margin-top:4px;">Đã đánh giá</div>
+    </div>
+    <div style="background:var(--card); border-radius:var(--radius); padding:20px; text-align:center;">
+      <div style="font-size:1.8rem; font-weight:700; color:var(--green);">{{ watchlist|length }}</div>
+      <div style="font-size:.82rem; color:var(--text-muted); margin-top:4px;">Watchlist</div>
+    </div>
+    <div style="background:var(--card); border-radius:var(--radius); padding:20px; text-align:center;">
+      <div style="font-size:1.8rem; font-weight:700; color:var(--primary);">{{ history|length }}</div>
+      <div style="font-size:.82rem; color:var(--text-muted); margin-top:4px;">Lịch sử xem</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div style="display:flex; gap:8px; margin-bottom:24px; border-bottom:1px solid var(--border); padding-bottom:0;">
+    <button class="tab-btn active" onclick="showTab('ratings', this)">⭐ Đánh giá ({{ ratings|length }})</button>
+    <button class="tab-btn" onclick="showTab('watchlist', this)">🎬 Watchlist ({{ watchlist|length }})</button>
+    <button class="tab-btn" onclick="showTab('genres', this)">🏷️ Sở thích</button>
+  </div>
+
+  <!-- Tab: Ratings -->
+  <div id="tab-ratings" class="tab-content">
+    {% if ratings %}
+    <div style="display:grid; gap:10px;">
+    {% for r in ratings[:20] %}
+    <div style="background:var(--card); border-radius:var(--radius); padding:14px 16px; display:flex; align-items:center; gap:14px;">
+      <a href="/movie/{{ r.movie_id }}" style="font-size:1.4rem; text-decoration:none;">🎬</a>
+      <div style="flex:1; min-width:0;">
+        <a href="/movie/{{ r.movie_id }}" style="color:var(--text); text-decoration:none; font-weight:500; font-size:.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;">{{ r.title }}</a>
+        <div style="font-size:.78rem; color:var(--text-muted);">{{ r.genres or '' }}</div>
+      </div>
+      <div style="text-align:right; flex-shrink:0;">
+        <div style="color:var(--accent); font-weight:700;">{{ r.rating }}★</div>
+        <div style="font-size:.72rem; color:var(--text-muted);">{{ r.created_at[:10] }}</div>
+      </div>
+    </div>
+    {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon">⭐</div>
+      <p>Bạn chưa đánh giá phim nào</p>
+      <a href="/movies" class="btn btn-primary" style="margin-top:16px;">Duyệt phim ngay</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Tab: Watchlist -->
+  <div id="tab-watchlist" class="tab-content" style="display:none;">
+    {% if watchlist %}
+    <div class="movie-grid">
+    {% for m in watchlist %}
+      <a href="/movie/{{ m.movie_id }}" class="movie-card">
+        <div class="movie-thumb">
+          {% set emojis = ['🎬','🎭','🎪','🎥','🎞','🎦'] %}
+          <span>{{ emojis[loop.index0 % 6] }}</span>
+          {% if m.avg_rating %}<div class="rating-badge">⭐ {{ "%.1f"|format(m.avg_rating) }}</div>{% endif %}
+        </div>
+        <div class="movie-info">
+          <div class="movie-title">{{ m.title }}</div>
+          <div class="movie-genres">{{ m.genres or '' }}</div>
+        </div>
+      </a>
+    {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="icon">🎬</div>
+      <p>Watchlist trống</p>
+      <a href="/movies" class="btn btn-primary" style="margin-top:16px;">Tìm phim</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Tab: Genres -->
+  <div id="tab-genres" class="tab-content" style="display:none;">
+    <h3 style="margin-bottom:16px;">🏷️ Sở thích thể loại của bạn</h3>
+    {% if genre_prefs %}
+    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:24px;">
+    {% for g in genre_prefs %}
+    <div style="background:var(--card); border:1px solid var(--border); border-radius:99px; padding:10px 20px; display:flex; align-items:center; gap:8px;">
+      <span style="font-weight:600;">{{ g.genre|title }}</span>
+      <span style="color:var(--text-muted); font-size:.8rem;">độ ưu tiên {{ "%.1f"|format(g.weight) }}</span>
+    </div>
+    {% endfor %}
+    </div>
+    {% else %}
+    <p style="color:var(--text-muted); margin-bottom:16px;">Chưa có sở thích được thiết lập</p>
+    {% endif %}
+    <a href="/recommendations" class="btn btn-secondary btn-sm">Xem gợi ý của tôi</a>
+  </div>
+</div>
+
+<style>
+.tab-btn { background:transparent; color:var(--text-muted); border:none; padding:10px 16px; font-size:.9rem; cursor:pointer; border-bottom:2px solid transparent; transition:.2s; font-family:inherit; }
+.tab-btn.active, .tab-btn:hover { color:var(--text); border-bottom-color:var(--primary); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display='none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+id).style.display='block';
+  btn.classList.add('active');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+ENV/
+env/
+
+# Data and Models
+*.csv
+*.zip
+*.db
+app.db
+movies.db
+genome_scores.csv
+movie.csv
+rating.csv
+tmdb_5000_credits.csv
+tmdb_5000_movies.csv
+
+# Models (Pickles) - Uncomment if you want to push them
+*.pkl
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store

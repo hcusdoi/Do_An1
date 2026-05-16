@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Đăng nhập — CineAI{% endblock %}
+
+{% block content %}
+<div class="form-card">
+  <h1>👤 Đăng nhập</h1>
+  <p>Chưa có tài khoản? <a href="/register" style="color:var(--primary)">Đăng ký ngay</a></p>
+
+  {% if error %}
+  <div class="error-box">⚠️ {{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/login">
+    <input type="hidden" name="next" value="{{ next }}">
+    <div class="form-group">
+      <label>Tên đăng nhập</label>
+      <input type="text" name="username" placeholder="Nhập username..." required autofocus>
+    </div>
+    <div class="form-group">
+      <label>Mật khẩu</label>
+      <input type="password" name="password" placeholder="Nhập mật khẩu..." required>
+    </div>
+    <button type="submit" class="btn btn-primary btn-full" style="margin-top:8px;">
+      🔑 Đăng nhập
+    </button>
+  </form>
+
+  <hr class="divider">
+  <div style="font-size:.82rem; color:var(--text-muted); text-align:center;">
+    <strong>Tài khoản demo:</strong><br>
+    <code>alice / alice123</code> &nbsp;|&nbsp; <code>bob / bob123</code><br>
+    <code>charlie / charlie123</code> &nbsp;|&nbsp; <code>demo / demo123</code>
+  </div>
+</div>
+{% endblock %}
