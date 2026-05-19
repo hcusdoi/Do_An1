@@ -1,4 +1,0 @@
-C:\Users\Admin\Documents\Doan1\MovieWinform\obj\Debug\net10.0-windows\MovieWinform.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\Admin\Documents\Doan1\MovieWinform\obj\Debug\net10.0-windows\MovieWinform.AssemblyInfoInputs.cache
-C:\Users\Admin\Documents\Doan1\MovieWinform\obj\Debug\net10.0-windows\MovieWinform.AssemblyInfo.cs
-C:\Users\Admin\Documents\Doan1\MovieWinform\obj\Debug\net10.0-windows\MovieWinform.csproj.CoreCompileInputs.cache

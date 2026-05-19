@@ -1,12 +1,10 @@
 from fastapi import FastAPI, Query
 from typing import Optional
-from recommender import MovieRecommender
+from bll import BLL
 import uvicorn
+import pandas as pd
 
 app = FastAPI(title="Movie Recommendation API")
-
-# Khởi tạo mô hình lúc khởi động server
-rec = MovieRecommender()
 
 @app.get("/")
 def home():
@@ -14,7 +12,11 @@ def home():
 
 @app.get("/movies")
 def search_movies(query: str = Query(None), limit: int = 50):
-    df = rec.db.copy()
+    with BLL() as db:
+        movies = db.get_movies(limit=limit, search=query)
+        df = pd.DataFrame(movies)
+    if df.empty:
+        return []
     if query:
         df = df[df['title'].str.contains(query, case=False, na=False)]
     
@@ -29,9 +31,10 @@ def recommend(user_id: Optional[int] = Query(None), movie_id: Optional[int] = Qu
     if user_id is None and movie_id is None:
         return {"error": "Cần cung cấp user_id hoặc movie_id"}
         
-    df = rec.get_hybrid_recommendations(user_id=user_id, movie_id=movie_id, top_n=top_n)
+    with BLL() as db:
+        df = db.get_hybrid_recommendations(user_id=user_id, movie_id=movie_id, top_n=top_n)
     
-    if df.empty:
+    if df is None or df.empty:
         return []
         
     if 'genres_clean' in df.columns:

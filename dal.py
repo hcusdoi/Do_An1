@@ -1,15 +1,4 @@
-"""
-db.py - Database helper cho Movie Recommender Web App
-Cung cap cac ham CRUD don gian cho tat ca cac tinh nang web.
-
-Cach dung:
-    from db import DB
-    db = DB()
-    user = db.login('alice', 'alice123')
-    db.close()
-"""
 import sqlite3
-import hashlib
 import json
 import os
 from datetime import datetime, timedelta
@@ -17,15 +6,10 @@ from typing import Optional, List, Dict, Any
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'app.db')
 
-
-def _hash(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
-
-
-class DB:
+class DAL:
     def __init__(self, path: str = DB_PATH):
         self.conn = sqlite3.connect(path)
-        self.conn.row_factory = sqlite3.Row          # tra ve dict-like rows
+        self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.execute("PRAGMA journal_mode = WAL")
 
@@ -39,75 +23,58 @@ class DB:
         self.close()
 
     # ------------------------------------------------------------------
-    # AUTH
+    # USERS
     # ------------------------------------------------------------------
-    def register(self, username: str, email: str, password: str,
-                 display_name: str = None) -> Dict:
-        """
-        Dang ki nguoi dung moi.
-        Tra ve {'ok': True, 'user': {...}} hoac {'ok': False, 'error': '...'}
-        """
-        display_name = display_name or username
+    def create_user(self, username: str, email: str, password_hash: str, display_name: str) -> Optional[Dict]:
         try:
             cur = self.conn.execute("""
                 INSERT INTO users (username, email, password_hash, display_name)
                 VALUES (?,?,?,?)
-            """, (username.strip(), email.strip().lower(),
-                  _hash(password), display_name))
+            """, (username.strip(), email.strip().lower(), password_hash, display_name))
             self.conn.commit()
-            return {'ok': True, 'user': self.get_user_by_id(cur.lastrowid)}
-        except sqlite3.IntegrityError as e:
-            err = 'Username da ton tai' if 'username' in str(e).lower() else 'Email da ton tai'
-            return {'ok': False, 'error': err}
+            return self.get_user_by_id(cur.lastrowid)
+        except sqlite3.IntegrityError:
+            return None
 
-    def login(self, username: str, password: str) -> Optional[Dict]:
-        """
-        Dang nhap. Tra ve dict user neu thanh cong, None neu sai.
-        """
+    def get_user_by_username(self, username: str) -> Optional[Dict]:
         row = self.conn.execute("""
             SELECT * FROM users WHERE username = ? COLLATE NOCASE
         """, (username,)).fetchone()
+        return dict(row) if row else None
 
-        if row and row['password_hash'] == _hash(password):
-            self.conn.execute("""
-                UPDATE users SET last_login = datetime('now','localtime') WHERE id = ?
-            """, (row['id'],))
-            self.conn.commit()
-            return dict(row)
-        return None
+    def get_user_by_email(self, email: str) -> Optional[Dict]:
+        row = self.conn.execute("""
+            SELECT * FROM users WHERE email = ? COLLATE NOCASE
+        """, (email,)).fetchone()
+        return dict(row) if row else None
 
     def get_user_by_id(self, user_id: int) -> Optional[Dict]:
         row = self.conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
         return dict(row) if row else None
 
-    def update_profile(self, user_id: int, display_name: str = None,
-                       avatar_url: str = None) -> bool:
+    def update_last_login(self, user_id: int):
+        self.conn.execute("""
+            UPDATE users SET last_login = datetime('now','localtime') WHERE id = ?
+        """, (user_id,))
+        self.conn.commit()
+
+    def update_profile(self, user_id: int, display_name: str = None, avatar_url: str = None) -> bool:
         if display_name:
-            self.conn.execute("UPDATE users SET display_name=? WHERE id=?",
-                              (display_name, user_id))
+            self.conn.execute("UPDATE users SET display_name=? WHERE id=?", (display_name, user_id))
         if avatar_url:
-            self.conn.execute("UPDATE users SET avatar_url=? WHERE id=?",
-                              (avatar_url, user_id))
+            self.conn.execute("UPDATE users SET avatar_url=? WHERE id=?", (avatar_url, user_id))
         self.conn.commit()
         return True
 
-    def change_password(self, user_id: int, old_pw: str, new_pw: str) -> bool:
-        row = self.conn.execute("SELECT password_hash FROM users WHERE id=?",
-                                (user_id,)).fetchone()
-        if row and row['password_hash'] == _hash(old_pw):
-            self.conn.execute("UPDATE users SET password_hash=? WHERE id=?",
-                              (_hash(new_pw), user_id))
-            self.conn.commit()
-            return True
-        return False
+    def update_password(self, user_id: int, password_hash: str) -> bool:
+        self.conn.execute("UPDATE users SET password_hash=? WHERE id=?", (password_hash, user_id))
+        self.conn.commit()
+        return True
 
     # ------------------------------------------------------------------
     # MOVIES
     # ------------------------------------------------------------------
-    def get_movies(self, limit: int = 50, offset: int = 0,
-                   genre: str = None, search: str = None,
-                   sort_by: str = 'num_ratings') -> List[Dict]:
-        """Lay danh sach phim, co the loc theo the loai / tu khoa."""
+    def get_movies(self, limit: int = 50, offset: int = 0, genre: str = None, search: str = None, sort_by: str = 'num_ratings') -> List[Dict]:
         q = "SELECT * FROM movies WHERE 1=1"
         params: List[Any] = []
         if genre:
@@ -123,8 +90,7 @@ class DB:
         return [dict(r) for r in rows]
 
     def get_movie_by_id(self, movie_id: int) -> Optional[Dict]:
-        row = self.conn.execute("SELECT * FROM movies WHERE movie_id=?",
-                                (movie_id,)).fetchone()
+        row = self.conn.execute("SELECT * FROM movies WHERE movie_id=?", (movie_id,)).fetchone()
         return dict(row) if row else None
 
     def search_movies(self, query: str, limit: int = 20) -> List[Dict]:
@@ -144,7 +110,6 @@ class DB:
         return [dict(r) for r in self.conn.execute(q, params).fetchall()]
 
     def get_all_genres(self) -> List[str]:
-        """Lay danh sach tat ca the loai."""
         rows = self.conn.execute("SELECT DISTINCT genres FROM movies WHERE genres IS NOT NULL").fetchall()
         genres = set()
         for row in rows:
@@ -154,34 +119,31 @@ class DB:
                     genres.add(g)
         return sorted(genres)
 
+    def get_all_movie_ids(self) -> List[int]:
+        rows = self.conn.execute("SELECT movie_id FROM movies").fetchall()
+        return [r['movie_id'] for r in rows]
+
     # ------------------------------------------------------------------
     # RATINGS
     # ------------------------------------------------------------------
     def rate_movie(self, user_id: int, movie_id: int, rating: float) -> bool:
-        """Them hoac cap nhat rating. Tra ve True neu thanh cong."""
-        if not (0.5 <= rating <= 5.0):
-            return False
         self.conn.execute("""
             INSERT INTO ratings (user_id, movie_id, rating)
             VALUES (?,?,?)
             ON CONFLICT(user_id, movie_id) DO UPDATE SET rating=excluded.rating,
                 created_at=datetime('now','localtime')
         """, (user_id, movie_id, rating))
-        # Cap nhat is_new_user = 0 sau khi co rating dau tien
         self.conn.execute("UPDATE users SET is_new_user=0 WHERE id=?", (user_id,))
-        # Xoa cache vi ratings thay doi
         self.conn.execute("DELETE FROM recommendations_cache WHERE user_id=?", (user_id,))
         self.conn.commit()
         return True
 
     def delete_rating(self, user_id: int, movie_id: int) -> bool:
-        self.conn.execute("DELETE FROM ratings WHERE user_id=? AND movie_id=?",
-                          (user_id, movie_id))
+        self.conn.execute("DELETE FROM ratings WHERE user_id=? AND movie_id=?", (user_id, movie_id))
         self.conn.commit()
         return True
 
     def get_user_ratings(self, user_id: int) -> List[Dict]:
-        """Lay tat ca ratings cua mot user, kem thong tin phim."""
         rows = self.conn.execute("""
             SELECT r.*, m.title, m.genres, m.avg_rating, m.poster_url
             FROM ratings r
@@ -202,16 +164,17 @@ class DB:
         return [dict(r) for r in rows]
 
     def get_user_rating_for_movie(self, user_id: int, movie_id: int) -> Optional[float]:
-        row = self.conn.execute("""
-            SELECT rating FROM ratings WHERE user_id=? AND movie_id=?
-        """, (user_id, movie_id)).fetchone()
+        row = self.conn.execute("SELECT rating FROM ratings WHERE user_id=? AND movie_id=?", (user_id, movie_id)).fetchone()
         return row['rating'] if row else None
+
+    def get_rated_movie_ids(self, user_id: int) -> List[int]:
+        rows = self.conn.execute("SELECT movie_id FROM ratings WHERE user_id=?", (user_id,)).fetchall()
+        return [r['movie_id'] for r in rows]
 
     # ------------------------------------------------------------------
     # HISTORY
     # ------------------------------------------------------------------
     def log_action(self, user_id: int, movie_id: int, action: str = 'view'):
-        """Ghi lai hanh dong (view/click/rate/skip)."""
         self.conn.execute("""
             INSERT INTO user_history (user_id, movie_id, action)
             VALUES (?,?,?)
@@ -240,17 +203,14 @@ class DB:
     # ------------------------------------------------------------------
     def add_to_watchlist(self, user_id: int, movie_id: int) -> bool:
         try:
-            self.conn.execute("""
-                INSERT INTO watchlist (user_id, movie_id) VALUES (?,?)
-            """, (user_id, movie_id))
+            self.conn.execute("INSERT INTO watchlist (user_id, movie_id) VALUES (?,?)", (user_id, movie_id))
             self.conn.commit()
             return True
         except sqlite3.IntegrityError:
-            return False  # da co trong watchlist
+            return False
 
     def remove_from_watchlist(self, user_id: int, movie_id: int) -> bool:
-        self.conn.execute("DELETE FROM watchlist WHERE user_id=? AND movie_id=?",
-                          (user_id, movie_id))
+        self.conn.execute("DELETE FROM watchlist WHERE user_id=? AND movie_id=?", (user_id, movie_id))
         self.conn.commit()
         return True
 
@@ -265,39 +225,28 @@ class DB:
         return [dict(r) for r in rows]
 
     def is_in_watchlist(self, user_id: int, movie_id: int) -> bool:
-        row = self.conn.execute("""
-            SELECT 1 FROM watchlist WHERE user_id=? AND movie_id=?
-        """, (user_id, movie_id)).fetchone()
+        row = self.conn.execute("SELECT 1 FROM watchlist WHERE user_id=? AND movie_id=?", (user_id, movie_id)).fetchone()
         return row is not None
 
     # ------------------------------------------------------------------
-    # USER GENRE PREFERENCES (Cold Start)
+    # USER GENRE PREFERENCES
     # ------------------------------------------------------------------
     def set_genre_preferences(self, user_id: int, genres: List[str]):
-        """Set so thich the loai sau khi dang ki (cold start onboarding)."""
         self.conn.execute("DELETE FROM user_genres WHERE user_id=?", (user_id,))
         for i, genre in enumerate(genres):
-            weight = 1.5 - i * 0.1  # genre dau tien quan trong nhat
-            self.conn.execute("""
-                INSERT INTO user_genres (user_id, genre, weight) VALUES (?,?,?)
-            """, (user_id, genre, max(0.5, weight)))
-        # Xoa cache
+            weight = 1.5 - i * 0.1
+            self.conn.execute("INSERT INTO user_genres (user_id, genre, weight) VALUES (?,?,?)", (user_id, genre, max(0.5, weight)))
         self.conn.execute("DELETE FROM recommendations_cache WHERE user_id=?", (user_id,))
         self.conn.commit()
 
     def get_genre_preferences(self, user_id: int) -> List[Dict]:
-        rows = self.conn.execute("""
-            SELECT genre, weight FROM user_genres
-            WHERE user_id=? ORDER BY weight DESC
-        """, (user_id,)).fetchall()
+        rows = self.conn.execute("SELECT genre, weight FROM user_genres WHERE user_id=? ORDER BY weight DESC", (user_id,)).fetchall()
         return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
     # RECOMMENDATIONS CACHE
     # ------------------------------------------------------------------
-    def save_recommendations(self, user_id: int, method: str,
-                              results: List[Dict], ttl_hours: int = 24):
-        """Luu ket qua goi y vao cache."""
+    def save_recommendations(self, user_id: int, method: str, results: List[Dict], ttl_hours: int = 24):
         expires = (datetime.now() + timedelta(hours=ttl_hours)).strftime('%Y-%m-%d %H:%M:%S')
         self.conn.execute("""
             INSERT INTO recommendations_cache (user_id, method, results, expires_at)
@@ -310,32 +259,25 @@ class DB:
         self.conn.commit()
 
     def get_cached_recommendations(self, user_id: int, method: str) -> Optional[List[Dict]]:
-        """Lay cache neu con han. Tra ve None neu het han hoac chua co."""
-        row = self.conn.execute("""
-            SELECT results, expires_at FROM recommendations_cache
-            WHERE user_id=? AND method=?
-        """, (user_id, method)).fetchone()
+        row = self.conn.execute("SELECT results, expires_at FROM recommendations_cache WHERE user_id=? AND method=?", (user_id, method)).fetchone()
         if not row:
             return None
         if row['expires_at'] and datetime.now().strftime('%Y-%m-%d %H:%M:%S') > row['expires_at']:
-            return None  # het han
+            return None
         return json.loads(row['results'])
 
     def invalidate_cache(self, user_id: int):
-        """Xoa cache khi user rating moi."""
         self.conn.execute("DELETE FROM recommendations_cache WHERE user_id=?", (user_id,))
         self.conn.commit()
 
     # ------------------------------------------------------------------
-    # STATS (cho trang admin)
+    # STATS
     # ------------------------------------------------------------------
     def get_stats(self) -> Dict:
         stats = {}
-        for table, col in [('users','id'),('movies','movie_id'),
-                            ('ratings','id'),('watchlist','id')]:
+        for table, col in [('users','id'),('movies','movie_id'),('ratings','id'),('watchlist','id')]:
             row = self.conn.execute(f"SELECT COUNT({col}) FROM {table}").fetchone()
             stats[f'total_{table}'] = row[0]
-        # Top rated movies
         rows = self.conn.execute("""
             SELECT m.title, m.avg_rating, m.num_ratings
             FROM movies m
@@ -343,7 +285,6 @@ class DB:
             ORDER BY m.avg_rating DESC LIMIT 5
         """).fetchall()
         stats['top_movies'] = [dict(r) for r in rows]
-        # Most active users
         rows = self.conn.execute("""
             SELECT u.username, u.display_name, COUNT(r.id) as rating_count
             FROM users u LEFT JOIN ratings r ON r.user_id = u.id
@@ -352,21 +293,3 @@ class DB:
         stats['active_users'] = [dict(r) for r in rows]
         return stats
 
-    # ------------------------------------------------------------------
-    # UTILITY
-    # ------------------------------------------------------------------
-    def get_rated_movie_ids(self, user_id: int) -> List[int]:
-        """Lay danh sach movieId ma user da danh gia (de loai khoi goi y)."""
-        rows = self.conn.execute("""
-            SELECT movie_id FROM ratings WHERE user_id=?
-        """, (user_id,)).fetchall()
-        return [r['movie_id'] for r in rows]
-
-    def get_all_movie_ids(self) -> List[int]:
-        rows = self.conn.execute("SELECT movie_id FROM movies").fetchall()
-        return [r['movie_id'] for r in rows]
-
-    def user_exists(self, username: str) -> bool:
-        row = self.conn.execute(
-            "SELECT 1 FROM users WHERE username=? COLLATE NOCASE", (username,)).fetchone()
-        return row is not None
